@@ -3,11 +3,15 @@ import argparse
 import json
 import os
 import nnsight
+import dotenv
 
 from src.dataset import load_csv
 from src.evaluation import run_evaluation
 
+dotenv.load_dotenv()
+
 nnsight.CONFIG.set_default_api_key(os.getenv("NNSIGHT_API_KEY"))
+nnsight.CONFIG.API.HOST = os.getenv("NNSIGHT_API_HOST", "https://api.ndif.us")
 
 
 def main():
