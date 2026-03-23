@@ -43,6 +43,7 @@ def run_probe_training(model: StandardizedTransformer, games: list[dict], remote
                                 grad_b = d_logit
                                 grads[l]["w"].append(grad_w.save())
                                 grads[l]["b"].append(grad_b.save())
+                    grads.save()
 
                 for l in layers:
                     mean_gw = torch.stack([g.detach().cpu() for g in grads[l]["w"]]).mean(dim=0)
