@@ -5,8 +5,9 @@ import os
 import nnsight
 import dotenv
 
-from src.dataset import load_csv
+from src.dataset import load_dataset
 from src.evaluation import run_evaluation
+from src.probe import run_probe_training
 
 dotenv.load_dotenv()
 
@@ -16,20 +17,32 @@ nnsight.CONFIG.API.HOST = os.getenv("NNSIGHT_API_HOST", "https://api.ndif.us")
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["static-game", "probe"], default="static-game")
     parser.add_argument("--model", default="meta-llama/Llama-3.3-70B-Instruct")
-    parser.add_argument("--dataset", required=True)
+    parser.add_argument("--dataset", default="data/liars-bench")
+    parser.add_argument("--size", choices=["xsmall", "small", "medium", "large", "xlarge"], default="xsmall")
     parser.add_argument("--prompt-col", default="statement")
     parser.add_argument("--batch", action="store_true")
     parser.add_argument("--remote", action="store_true", default=True)
-    parser.add_argument("--layers", type=int, nargs="*", help="Layers to extract (whitebox)")
+    parser.add_argument("--local", action="store_false", dest="remote")
+    parser.add_argument("--layers", type=int, nargs="*", help="Layers to extract")
     parser.add_argument("--max-tokens", type=int, default=1)
+    parser.add_argument("--all-tokens", action="store_true", help="Probe: use all tokens (default: last only)")
+    parser.add_argument("--epochs", type=int, default=1, help="Probe: training epochs")
+    parser.add_argument("--lr", type=float, default=0.1, help="Probe: learning rate")
     args = parser.parse_args()
 
     model = nnsight.LanguageModel(args.model)
-    games = load_csv(args.dataset, args.prompt_col, args.max_tokens, args.layers)
+    games = load_dataset(args.dataset, args.size, args.prompt_col, args.max_tokens, args.layers)
 
-    print(f"Running {len(games)} games, batch={args.batch}, remote={args.remote}")
-    results = run_evaluation(model, games, remote=args.remote, batch=args.batch)
+    print(f"Mode: {args.mode}, {len(games)} games, batch={args.batch}, remote={args.remote}")
+
+    if args.mode == "static-game":
+        results = run_evaluation(model, games, remote=args.remote, batch=args.batch)
+    else:
+        results = run_probe_training(model, games, remote=args.remote, batch=args.batch,
+                                     all_tokens=args.all_tokens, layers=args.layers,
+                                     epochs=args.epochs, lr=args.lr)
 
     print(json.dumps(results, indent=2))
 
