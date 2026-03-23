@@ -23,7 +23,8 @@ def main():
     parser.add_argument("--dataset", default="data/liars-bench")
     parser.add_argument("--size", choices=["xsmall", "small", "medium", "large", "xlarge"], default="xsmall")
     parser.add_argument("--prompt-col", default="statement")
-    parser.add_argument("--batch", action="store_true")
+    parser.add_argument("--batch-size", type=int, default=1, help="Batch size (default: 1)")
+    parser.add_argument("--batch-all", action="store_true", help="Batch entire dataset at once")
     parser.add_argument("--remote", action="store_true", default=True)
     parser.add_argument("--local", action="store_false", dest="remote")
     parser.add_argument("--layers", type=int, nargs="*", help="Layers to extract")
@@ -36,12 +37,13 @@ def main():
     model = StandardizedTransformer(args.model)
     games = load_dataset(args.dataset, args.size, args.prompt_col, args.max_tokens, args.layers)
 
-    print(f"Mode: {args.mode}, {len(games)} games, batch={args.batch}, remote={args.remote}")
+    batch_size = None if args.batch_all else args.batch_size
+    print(f"Mode: {args.mode}, {len(games)} games, batch_size={batch_size or 'all'}, remote={args.remote}")
 
     if args.mode == "static-game":
-        results = run_evaluation(model, games, remote=args.remote, batch=args.batch)
+        results = run_evaluation(model, games, remote=args.remote, batch_size=batch_size)
     else:
-        results = run_probe_training(model, games, remote=args.remote, batch=args.batch,
+        results = run_probe_training(model, games, remote=args.remote, batch_size=batch_size,
                                      all_tokens=args.all_tokens, layers=args.layers,
                                      epochs=args.epochs, lr=args.lr)
 
