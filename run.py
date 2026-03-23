@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--all-tokens", action="store_true", help="Probe: use all tokens (default: last only)")
     parser.add_argument("--epochs", type=int, default=1, help="Probe: training epochs")
     parser.add_argument("--lr", type=float, default=0.1, help="Probe: learning rate")
+    parser.add_argument("--local-grads", action="store_true", help="Probe: download acts, compute grads locally")
     args = parser.parse_args()
 
     model = StandardizedTransformer(args.model)
@@ -45,7 +46,7 @@ def main():
     else:
         results = run_probe_training(model, games, remote=args.remote, batch_size=batch_size,
                                      all_tokens=args.all_tokens, layers=args.layers,
-                                     epochs=args.epochs, lr=args.lr)
+                                     epochs=args.epochs, lr=args.lr, local_grads=args.local_grads)
 
     print(json.dumps(results, indent=2))
 
