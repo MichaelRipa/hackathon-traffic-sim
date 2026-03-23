@@ -22,54 +22,61 @@ def run_probe_training(model: nnsight.LanguageModel, games: list[dict], remote: 
 
     for epoch in range(epochs):
         start = time.time()
+        errors = 0
 
         if batch:
-            with model.session(remote=remote):
-                grads = {l: {"w": [], "b": []} for l in layers}
-                for game, label in zip(games, labels):
-                    with model.trace(game["prompt"]):
-                        for l in layers:
-                            if all_tokens:
-                                act = model.model.layers[l].output[0].mean(dim=1).cpu()  # avg over tokens
-                            else:
-                                act = model.model.layers[l].output[0][-1, :].cpu()
+            try:
+                with model.session(remote=remote):
+                    grads = {l: {"w": [], "b": []} for l in layers}
+                    for game, label in zip(games, labels):
+                        with model.trace(game["prompt"]):
+                            for l in layers:
+                                if all_tokens:
+                                    act = model.model.layers[l].output[0].mean(dim=1).cpu()
+                                else:
+                                    act = model.model.layers[l].output[0][-1, :].cpu()
 
-                            # Probe forward + gradient (computed remotely)
-                            logit = (act * probes[l]["weight"]).sum(dim=-1) + probes[l]["bias"]
-                            prob = torch.sigmoid(logit)
-                            d_logit = prob - label
-                            grad_w = (d_logit.unsqueeze(-1) * act)
-                            grad_b = d_logit
-                            grads[l]["w"].append(grad_w.save())
-                            grads[l]["b"].append(grad_b.save())
+                                logit = (act * probes[l]["weight"]).sum(dim=-1) + probes[l]["bias"]
+                                prob = torch.sigmoid(logit)
+                                d_logit = prob - label
+                                grad_w = (d_logit.unsqueeze(-1) * act)
+                                grad_b = d_logit
+                                grads[l]["w"].append(grad_w.save())
+                                grads[l]["b"].append(grad_b.save())
 
-            # Update probes locally
-            for l in layers:
-                mean_gw = torch.stack([g.detach().cpu() for g in grads[l]["w"]]).mean(dim=0)
-                mean_gb = torch.stack([g.detach().cpu() for g in grads[l]["b"]]).mean(dim=0)
-                probes[l]["weight"] -= lr * mean_gw
-                probes[l]["bias"] -= lr * mean_gb
+                for l in layers:
+                    mean_gw = torch.stack([g.detach().cpu() for g in grads[l]["w"]]).mean(dim=0)
+                    mean_gb = torch.stack([g.detach().cpu() for g in grads[l]["b"]]).mean(dim=0)
+                    probes[l]["weight"] -= lr * mean_gw
+                    probes[l]["bias"] -= lr * mean_gb
+            except Exception as e:
+                errors += 1
+                print(f"[epoch {epoch+1}] Batch error: {e}")
 
         else:
-            for game, label in zip(games, labels):
-                with model.session(remote=remote):
-                    with model.trace(game["prompt"]):
-                        for l in layers:
-                            if all_tokens:
-                                act = model.model.layers[l].output[0].mean(dim=1).cpu()
-                            else:
-                                act = model.model.layers[l].output[0][-1, :].cpu()
+            for i, (game, label) in enumerate(zip(games, labels)):
+                try:
+                    with model.session(remote=remote):
+                        with model.trace(game["prompt"]):
+                            for l in layers:
+                                if all_tokens:
+                                    act = model.model.layers[l].output[0].mean(dim=1).cpu()
+                                else:
+                                    act = model.model.layers[l].output[0][-1, :].cpu()
 
-                            logit = (act * probes[l]["weight"]).sum(dim=-1) + probes[l]["bias"]
-                            prob = torch.sigmoid(logit)
-                            d_logit = prob - label
-                            grad_w = (d_logit.unsqueeze(-1) * act).save()
-                            grad_b = d_logit.save()
+                                logit = (act * probes[l]["weight"]).sum(dim=-1) + probes[l]["bias"]
+                                prob = torch.sigmoid(logit)
+                                d_logit = prob - label
+                                grad_w = (d_logit.unsqueeze(-1) * act).save()
+                                grad_b = d_logit.save()
 
-                    probes[l]["weight"] -= lr * grad_w.detach().cpu()
-                    probes[l]["bias"] -= lr * grad_b.detach().cpu()
+                        probes[l]["weight"] -= lr * grad_w.detach().cpu()
+                        probes[l]["bias"] -= lr * grad_b.detach().cpu()
+                except Exception as e:
+                    errors += 1
+                    print(f"[epoch {epoch+1}, game {i}] Error: {e}")
 
         elapsed = time.time() - start
-        results.append({"epoch": epoch + 1, "layers": len(layers), "games": len(games), "time": elapsed})
+        results.append({"epoch": epoch + 1, "layers": len(layers), "games": len(games), "errors": errors, "time": elapsed})
 
     return results
