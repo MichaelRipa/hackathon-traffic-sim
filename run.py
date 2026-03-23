@@ -4,6 +4,7 @@ import json
 import os
 import nnsight
 import dotenv
+from nnterp import StandardizedTransformer
 
 from src.dataset import load_dataset
 from src.evaluation import run_evaluation
@@ -32,7 +33,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.1, help="Probe: learning rate")
     args = parser.parse_args()
 
-    model = nnsight.LanguageModel(args.model)
+    model = StandardizedTransformer(args.model)
     games = load_dataset(args.dataset, args.size, args.prompt_col, args.max_tokens, args.layers)
 
     print(f"Mode: {args.mode}, {len(games)} games, batch={args.batch}, remote={args.remote}")

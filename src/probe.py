@@ -1,18 +1,18 @@
 import time
 import torch
-import nnsight
+from nnterp import StandardizedTransformer
 
 
-def run_probe_training(model: nnsight.LanguageModel, games: list[dict], remote: bool = True,
+def run_probe_training(model: StandardizedTransformer, games: list[dict], remote: bool = True,
                        batch: bool = False, all_tokens: bool = False, layers: list[int] | None = None,
                        epochs: int = 1, lr: float = 0.1):
     """Simulate probe training on remote server."""
     results = []
 
     if layers is None:
-        layers = list(range(model.model.config.num_hidden_layers))
+        layers = list(range(model.config.num_hidden_layers))
 
-    hidden_dim = model.model.config.hidden_size
+    hidden_dim = model.config.hidden_size
 
     # Initialize probes (one per layer)
     probes = {l: {"weight": torch.randn(1, hidden_dim) * 0.01, "bias": torch.zeros(1)} for l in layers}
@@ -32,9 +32,9 @@ def run_probe_training(model: nnsight.LanguageModel, games: list[dict], remote: 
                         with model.trace(game["prompt"]):
                             for l in layers:
                                 if all_tokens:
-                                    act = model.model.layers[l].output[0].mean(dim=1).cpu()
+                                    act = model.layers_output[l].mean(dim=1).cpu()
                                 else:
-                                    act = model.model.layers[l].output[0][-1, :].cpu()
+                                    act = model.layers_output[l][:, -1, :].cpu()
 
                                 logit = (act * probes[l]["weight"]).sum(dim=-1) + probes[l]["bias"]
                                 prob = torch.sigmoid(logit)
@@ -60,9 +60,9 @@ def run_probe_training(model: nnsight.LanguageModel, games: list[dict], remote: 
                         with model.trace(game["prompt"]):
                             for l in layers:
                                 if all_tokens:
-                                    act = model.model.layers[l].output[0].mean(dim=1).cpu()
+                                    act = model.layers_output[l].mean(dim=1).cpu()
                                 else:
-                                    act = model.model.layers[l].output[0][-1, :].cpu()
+                                    act = model.layers_output[l][:, -1, :].cpu()
 
                                 logit = (act * probes[l]["weight"]).sum(dim=-1) + probes[l]["bias"]
                                 prob = torch.sigmoid(logit)

@@ -1,2 +1,3 @@
 nnsight
 python-dotenv
+nnterp
