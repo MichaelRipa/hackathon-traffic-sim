@@ -29,6 +29,8 @@ def main():
     parser.add_argument("--local", action="store_false", dest="remote")
     parser.add_argument("--layers", type=int, nargs="*", help="Layers to extract")
     parser.add_argument("--max-tokens", type=int, default=1)
+    parser.add_argument("--probe-layer", type=int, help="Static-game: apply probe at this layer")
+    parser.add_argument("--probe-path", type=str, help="Static-game: path to probe weights (default: random init)")
     parser.add_argument("--all-tokens", action="store_true", help="Probe: use all tokens (default: last only)")
     parser.add_argument("--epochs", type=int, default=1, help="Probe: training epochs")
     parser.add_argument("--lr", type=float, default=0.1, help="Probe: learning rate")
@@ -42,7 +44,8 @@ def main():
     print(f"Mode: {args.mode}, {len(games)} games, batch_size={batch_size or 'all'}, remote={args.remote}")
 
     if args.mode == "static-game":
-        results = run_evaluation(model, games, remote=args.remote, batch_size=batch_size)
+        results = run_evaluation(model, games, remote=args.remote, batch_size=batch_size,
+                                 probe_path=args.probe_path, probe_layer=args.probe_layer)
     else:
         results = run_probe_training(model, games, remote=args.remote, batch_size=batch_size,
                                      all_tokens=args.all_tokens, layers=args.layers,
