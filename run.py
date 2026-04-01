@@ -9,6 +9,7 @@ from nnterp import StandardizedTransformer
 from src.dataset import load_dataset
 from src.evaluation import run_evaluation
 from src.probe import run_probe_training
+from src.metrics import capture_remote_metrics
 
 dotenv.load_dotenv()
 
@@ -35,6 +36,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=1, help="Probe: training epochs")
     parser.add_argument("--lr", type=float, default=0.1, help="Probe: learning rate")
     parser.add_argument("--local-grads", action="store_true", help="Probe: download acts, compute grads locally")
+    parser.add_argument("--metrics", action="store_true", help="Capture and print remote execution timing metrics")
     args = parser.parse_args()
 
     model = StandardizedTransformer(args.model)
@@ -43,15 +45,26 @@ def main():
     batch_size = None if args.batch_all else args.batch_size
     print(f"Mode: {args.mode}, {len(games)} games, batch_size={batch_size or 'all'}, remote={args.remote}")
 
-    if args.mode == "static-game":
-        results = run_evaluation(model, games, remote=args.remote, batch_size=batch_size,
-                                 probe_path=args.probe_path, probe_layer=args.probe_layer)
-    else:
-        results = run_probe_training(model, games, remote=args.remote, batch_size=batch_size,
-                                     all_tokens=args.all_tokens, layers=args.layers,
-                                     epochs=args.epochs, lr=args.lr, local_grads=args.local_grads)
+    def run():
+        if args.mode == "static-game":
+            return run_evaluation(model, games, remote=args.remote, batch_size=batch_size,
+                                  probe_path=args.probe_path, probe_layer=args.probe_layer)
+        else:
+            return run_probe_training(model, games, remote=args.remote, batch_size=batch_size,
+                                      all_tokens=args.all_tokens, layers=args.layers,
+                                      epochs=args.epochs, lr=args.lr, local_grads=args.local_grads)
 
-    print(json.dumps(results, indent=2))
+    if args.metrics:
+        with capture_remote_metrics() as metrics:
+            results = run()
+        print("\n" + "=" * 50)
+        print("REMOTE EXECUTION METRICS")
+        print("=" * 50)
+        print(metrics.summary())
+        print("=" * 50)
+    else:
+        results = run()
+        print(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":
